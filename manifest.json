@@ -1,0 +1,15 @@
+{
+    "name": "Sistema Inventario Laboratorio",
+    "short_name": "LabInv",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#FDFEFE",
+    "theme_color": "#0A80AB",
+    "icons": [
+        {
+        "src": "icons/icon.svg",
+        "sizes": "any",
+        "type": "image/svg+xml"
+        }
+    ]
+}
