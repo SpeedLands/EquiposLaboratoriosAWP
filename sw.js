@@ -1,66 +1,53 @@
-// sw.js
-const CACHE_NAME = 'lab-inventory-v1';
-const ASSETS_TO_CACHE = [
-    './',                // Alias para index.html
-    './index.html',
-    './app.js',
-    './manifest.json',
-    // Intentamos cachear Tailwind (Nota: Lo ideal en prod es descargar el CSS o usar build process)
-    'https://cdn.tailwindcss.com' 
+const CACHE_NAME = 'equipos-awp-v2'; // Incrementar versión
+const urlsToCache = [
+    '/',
+    'index.html',
+    'dashboard.html',
+    'landing.js',
+    'app.js',
+    'manifest.json',
+    'icons/icon-192x192.png',
+    'icons/icon-512x512.png'
+    // No cacheamos la API ni Tailwind CDN aquí, se manejan con estrategia de red.
 ];
 
-// 1. Instalación: Cachear App Shell
 self.addEventListener('install', event => {
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
-                console.log('SW: Cacheando archivos estáticos');
-                return cache.addAll(ASSETS_TO_CACHE);
+                console.log('Cache abierto, añadiendo app shell');
+                return cache.addAll(urlsToCache);
             })
     );
-    self.skipWaiting(); // Activar inmediatamente
 });
 
-// 2. Activación: Limpiar cachés viejos
 self.addEventListener('activate', event => {
+    const cacheWhitelist = [CACHE_NAME];
     event.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(
-                cacheNames.map(cache => {
-                    if (cache !== CACHE_NAME) {
-                        console.log('SW: Borrando caché antigua', cache);
-                        return caches.delete(cache);
+                cacheNames.map(cacheName => {
+                    if (cacheWhitelist.indexOf(cacheName) === -1) {
+                        return caches.delete(cacheName);
                     }
                 })
             );
         })
     );
-    self.clients.claim();
 });
 
-// 3. Intercepción (Fetch Strategy: Stale-While-Revalidate o Cache First para estáticos)
-// Para archivos estáticos usamos Cache First.
-// IMPORTANTE: Las peticiones a api.php NO las interceptamos aquí para cache, 
-// dejamos que app.js maneje la lógica de datos con LocalStorage según requerimiento.
 self.addEventListener('fetch', event => {
-    const url = new URL(event.request.url);
-
-    // Si la petición es a la API, no hacemos nada en el SW (retornamos fetch directo)
-    // Esto asegura que app.js controle la lógica Network-First + LocalStorage
-    if (url.pathname.includes('api.php')) {
-        return; 
-    }
-
-    // Para el resto (archivos estáticos HTML, JS, CSS)
     event.respondWith(
-        caches.match(event.request)
-            .then(response => {
-                // Si está en caché, devolverlo
+        fetch(event.request).catch(() => {
+            // Si la red falla, intenta encontrar una respuesta en el caché
+            return caches.match(event.request).then(response => {
                 if (response) {
                     return response;
                 }
-                // Si no, ir a la red
-                return fetch(event.request);
-            })
+                // Si la petición no está en caché (ej. una petición a la API)
+                // y no hay red, no podemos hacer nada. Podríamos devolver
+                // una respuesta JSON de error genérica si quisiéramos.
+            });
+        })
     );
 });
