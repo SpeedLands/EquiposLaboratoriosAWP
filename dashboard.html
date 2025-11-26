@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - EquiposLaboratoriosAWP</title>
+    <meta name="theme-color" content="#0A80AB">
+    <link rel="manifest" href="manifest.json">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+</head>
+<body class="bg-slate-100">
+
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-[#FDFEFE] shadow-md flex flex-col">
+            <div class="p-6 text-2xl font-bold text-[#0A80AB] border-b border-slate-200">
+                EquiposAWP
+            </div>
+            <nav class="flex-1 p-4">
+                <a href="#" class="flex items-center px-4 py-2 text-white bg-[#0A80AB] rounded-md">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                    <span class="ml-3">Inventario</span>
+                </a>
+            </nav>
+            <div class="p-4 border-t border-slate-200">
+                <div id="user-info" class="flex items-center mb-4"></div>
+                <button id="logout-btn" class="w-full px-4 py-2 text-red-600 border border-red-600 rounded-md hover:bg-red-600 hover:text-white">Cerrar Sesión</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col overflow-hidden">
+            <header class="bg-white p-6 border-b border-slate-200 flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-800">Inventario de Equipos</h1>
+                <button id="add-equipo-btn" class="px-4 py-2 text-white bg-[#0A80AB] rounded-md hover:bg-opacity-90">
+                    + Nuevo Equipo
+                </button>
+            </header>
+            <div class="flex-1 p-6 overflow-y-auto">
+                <div class="mb-6">
+                    <input type="text" id="search-input" placeholder="Buscar por nombre, categoría o ubicación..." class="w-full p-3 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0A80AB]">
+                </div>
+                <div class="bg-white shadow-md rounded-lg overflow-x-auto">
+                    <table class="min-w-full">
+                        <thead class="bg-slate-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoría</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Serial</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ubicación</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Cantidad</th>
+                                <th class="px-6 py-3"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Container -->
+    <div id="modal-container"></div>
+
+    <script>
+        // Protección de la ruta
+        fetch('api.php?action=check_session')
+            .then(res => res.json())
+            .then(data => {
+                if (!data.loggedIn) {
+                    window.location.href = 'index.html';
+                }
+            });
+    </script>
+    <script src="app.js"></script>
+</body>
+</html>
