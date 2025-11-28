@@ -20,35 +20,43 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
 
     function initDB() {
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-        
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains(DRAFT_STORE_NAME)) {
-                db.createObjectStore(DRAFT_STORE_NAME, { keyPath: 'id' });
-            }
-            if (!db.objectStoreNames.contains(INVENTORY_STORE_NAME)) {
-                db.createObjectStore(INVENTORY_STORE_NAME, { keyPath: 'id' });
-            }
-            // Nueva tienda para guardar acciones pendientes cuando no hay internet
-            if (!db.objectStoreNames.contains(SYNC_QUEUE_NAME)) {
-                db.createObjectStore(SYNC_QUEUE_NAME, { keyPath: 'timestamp' });
-            }
-        };
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(DB_NAME, DB_VERSION);
 
-        request.onsuccess = (event) => {
-            db = event.target.result;
-            console.log("BD Iniciada. Verificando cola de sincronización...");
-            // Intentar sincronizar al iniciar si hay internet
-            if (navigator.onLine) {
-                processSyncQueue();
-            }
-        };
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                if (!db.objectStoreNames.contains(DRAFT_STORE_NAME)) {
+                    db.createObjectStore(DRAFT_STORE_NAME, { keyPath: 'id' });
+                }
+                if (!db.objectStoreNames.contains(INVENTORY_STORE_NAME)) {
+                    db.createObjectStore(INVENTORY_STORE_NAME, { keyPath: 'id' });
+                }
+                // Nueva tienda para guardar acciones pendientes cuando no hay internet
+                if (!db.objectStoreNames.contains(SYNC_QUEUE_NAME)) {
+                    db.createObjectStore(SYNC_QUEUE_NAME, { keyPath: 'timestamp' });
+                }
+            };
+
+            request.onsuccess = (event) => {
+                db = event.target.result;
+                console.log("BD Iniciada. Verificando cola de sincronización...");
+                // Intentar sincronizar al iniciar si hay internet
+                if (navigator.onLine) {
+                    processSyncQueue();
+                }
+                resolve(db);
+            };
+
+            request.onerror = (event) => {
+                console.error("Error al abrir BD:", event.target.error);
+                reject(event.target.error);
+            };
+        });
     }
 
     // --- API Helper INTELIGENTE ---
     async function api(action, data = null, isGet = false) {
-        const url = isGet ? `api.php?action=${action}&q=${encodeURIComponent(data)}` : `api.php?action=${action}`;
+        const url = isGet ? `api.php?action=${action}&q=${encodeURIComponent(data || '')}` : `api.php?action=${action}`;
         const options = isGet ? {} : {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -56,7 +64,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         try {
-            // Intento normal de conexión
             const response = await fetch(url, options);
             if (!response.ok) {
                 const errorData = await response.json();
@@ -65,20 +72,22 @@ document.addEventListener('DOMContentLoaded', () => {
             return response.json();
 
         } catch (error) {
+            // <--- CORRECCIÓN 1: No encolar check_session ni GETs
+            // Si es 'check_session', lanzamos el error para que checkUserSession active el modo offline
+            if (action === 'check_session' || isGet) {
+                throw error; 
+            }
+
             // SI FALLA LA RED y es una acción de modificación (POST), guardamos para luego
-            if ((error.name === 'TypeError' || error.message.includes('Failed to fetch')) && !isGet) {
-                console.warn('Offline detectado. Guardando en cola...');
-                
-                // 1. Guardar en la cola de sincronización
+            if ((error.name === 'TypeError' || error.message.includes('Failed to fetch'))) {
+                console.warn('Offline detectado. Guardando en cola acción:', action);
+
                 await addToSyncQueue(action, data);
-                
-                // 2. Actualizar la vista localmente (Optimistic UI) para que el usuario vea el cambio
                 await updateLocalCacheOptimistically(action, data);
 
-                // 3. Devolver una respuesta "falsa" de éxito para que el formulario se cierre
                 return { success: true, offline: true, message: 'Guardado localmente (pendiente de sync)' };
             }
-            throw error; // Si es otro error (o es un GET), lo lanzamos
+            throw error;
         }
     }
 
@@ -110,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (items.length === 0) return;
 
             console.log(`Sincronizando ${items.length} elementos...`);
-            
+
             // Mostrar notificación visual
             const notif = document.createElement('div');
             notif.className = 'fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-2 rounded shadow-lg z-50';
@@ -125,7 +134,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(item.data)
                     });
-                    
+
                     // Si tuvo éxito, borramos de la cola
                     const deleteTx = db.transaction([SYNC_QUEUE_NAME], 'readwrite');
                     deleteTx.objectStore(SYNC_QUEUE_NAME).delete(item.timestamp);
@@ -134,10 +143,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     console.error("Error sincronizando item:", item, err);
                 }
             }
-            
+
             notif.textContent = '¡Sincronización completada!';
             setTimeout(() => notif.remove(), 3000);
-            
+
             // Recargamos datos frescos del servidor
             loadEquipos();
         };
@@ -157,33 +166,52 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // 3. ACTUALIZACIÓN OPTIMISTA (UI OFFLINE)
     // ==========================================
-    
+
     async function updateLocalCacheOptimistically(action, data) {
+        // Asegurarnos de que db existe
+        if (!db) return;
+
         const transaction = db.transaction([INVENTORY_STORE_NAME], 'readwrite');
         const store = transaction.objectStore(INVENTORY_STORE_NAME);
 
         return new Promise((resolve) => {
             if (action === 'add_equipo') {
-                // Generamos un ID temporal para mostrarlo en la tabla
-                data.id = 'temp_' + Date.now(); 
-                data.fechaHoraIngreso = new Date().toISOString(); 
+                // Para nuevos, generamos ID temporal string (esto está bien)
+                data.id = 'temp_' + Date.now();
+                data.fechaHoraIngreso = new Date().toISOString();
                 store.add(data);
                 resolve();
+
             } else if (action === 'update_equipo') {
-                // Necesitamos obtener el objeto viejo para mantener la fecha original si no viene en data
-                store.get(parseInt(data.id)).onsuccess = (e) => {
+                // <--- AQUÍ ESTABA EL ERROR --->
+                
+                // 1. Detectar si es un ID temporal (string) o un ID real (número)
+                let idToSearch = data.id;
+                
+                // Si NO empieza con 'temp_', asumimos que es un ID de base de datos y lo convertimos a NÚMERO
+                if (!String(data.id).startsWith('temp_')) {
+                    idToSearch = parseInt(data.id);
+                }
+
+                store.get(idToSearch).onsuccess = (e) => {
                     const oldData = e.target.result;
-                    if(oldData) {
-                        const updatedData = { ...oldData, ...data }; // Mezclar datos
+                    if (oldData) {
+                        // 2. Al guardar, aseguramos que el ID tenga el tipo correcto
+                        const updatedData = { 
+                            ...oldData, 
+                            ...data,
+                            id: idToSearch // <--- FORZAMOS QUE SEA EL MISMO TIPO QUE EL ORIGINAL
+                        }; 
+                        
+                        // Ahora sí, put() encontrará la misma llave y la actualizará
                         store.put(updatedData);
                     }
                     resolve();
                 };
             } else if (action === 'delete_equipo') {
-                // Convertir ID a número porque viene como string del dataset
+                // Intentamos borrar ambas variantes por si acaso
                 store.delete(parseInt(data.id));
-                // También intentamos borrar si es un ID temporal string
-                store.delete(data.id); 
+                store.delete(data.id);
                 resolve();
             }
         });
@@ -194,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!db) return;
         const transaction = db.transaction([INVENTORY_STORE_NAME], 'readwrite');
         const store = transaction.objectStore(INVENTORY_STORE_NAME);
-        store.clear(); 
+        store.clear();
         equipos.forEach(equipo => store.put(equipo));
     }
 
@@ -208,8 +236,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 let resultados = request.result;
                 if (query) {
                     const q = query.toLowerCase();
-                    resultados = resultados.filter(eq => 
-                        eq.nombre.toLowerCase().includes(q) || 
+                    resultados = resultados.filter(eq =>
+                        eq.nombre.toLowerCase().includes(q) ||
                         eq.descripcion.toLowerCase().includes(q)
                     );
                 }
@@ -252,8 +280,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
 
     async function checkUserSession() {
+        // <--- CORRECCIÓN 2: Verificar offline ANTES de intentar conectar
+        if (!navigator.onLine) {
+            console.log("Inicio Offline detectado: Cargando datos locales...");
+            userInfoDiv.innerHTML = `<p class="font-semibold text-orange-600">Modo Offline</p>`;
+            loadEquipos(); // Cargar la tabla inmediatamente
+            return;
+        }
+
         try {
-            const session = await api('check_session');
+            // <--- CORRECCIÓN 3: Marcar explícitamente como GET (true al final)
+            const session = await api('check_session', null, true);
+            
             if (session.loggedIn) {
                 userInfoDiv.innerHTML = `<p class="font-semibold">${session.user.name}</p><p class="text-sm text-gray-500">${session.user.role}</p>`;
                 loadEquipos();
@@ -261,20 +299,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 window.location.href = 'index.html';
             }
         } catch (error) {
-            // Modo offline: asumimos logueado y mostramos caché
-            userInfoDiv.innerHTML = `<p class="font-semibold text-orange-600">Modo Offline</p>`;
-            loadEquipos();
+            // Si falla la petición (servidor caído o internet inestable), pasamos a modo offline
+            console.warn("Fallo verificando sesión, pasando a modo offline:", error);
+            userInfoDiv.innerHTML = `<p class="font-semibold text-orange-600">Modo Offline (Sin conexión)</p>`;
+            loadEquipos(); // Cargar la tabla desde IndexedDB
         }
     }
 
     async function loadEquipos(query = '') {
         inventoryBody.innerHTML = '<tr><td colspan="5" class="text-center p-4">Cargando...</td></tr>';
-        
+
         // 1. Intentar cargar de RED
         try {
             const equipos = await api('get_equipos', query, true);
             renderEquiposTable(equipos);
-            if(query === '') cacheAllEquipos(equipos); // Actualizar caché
+            if (query === '') cacheAllEquipos(equipos); // Actualizar caché
         } catch (error) {
             // 2. Si falla, cargar de CACHÉ LOCAL
             console.warn("Usando datos locales...");
@@ -282,11 +321,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const cachedEquipos = await getCachedEquipos(query);
                 if (cachedEquipos.length >= 0) {
                     renderEquiposTable(cachedEquipos);
-                    
+
                     // Aviso visual de estado offline
                     const queueCount = await countPendingSyncs();
                     const pendingMsg = queueCount > 0 ? ` (${queueCount} cambios pendientes)` : '';
-                    
+
                     const aviso = document.createElement('tr');
                     aviso.innerHTML = `<td colspan="5" class="bg-orange-100 text-orange-800 text-center text-xs p-2 font-bold">
                         ⚠️ Estás Offline. Trabajando con copia local.${pendingMsg}
@@ -298,10 +337,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     }
-    
+
     // Función auxiliar para contar pendientes
     function countPendingSyncs() {
-        if(!db) return Promise.resolve(0);
+        if (!db) return Promise.resolve(0);
         return new Promise(resolve => {
             const store = db.transaction([SYNC_QUEUE_NAME], 'readonly').objectStore(SYNC_QUEUE_NAME);
             store.count().onsuccess = (e) => resolve(e.target.result);
@@ -318,7 +357,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // Identificar si es un equipo temporal (creado offline)
             const isTemp = String(equipo.id).startsWith('temp_');
             const rowClass = isTemp ? 'bg-yellow-50 border-b border-yellow-200' : 'border-b border-slate-200';
-            
+
             const row = document.createElement('tr');
             row.className = rowClass;
             row.innerHTML = `
@@ -337,31 +376,31 @@ document.addEventListener('DOMContentLoaded', () => {
             inventoryBody.appendChild(row);
         });
     }
-    
+
     // Modals y Forms
     async function handleFormSubmit(event) {
         event.preventDefault();
         const formData = new FormData(event.target);
         const data = Object.fromEntries(formData.entries());
         const action = data.id && !data.id.startsWith('temp_') ? 'update_equipo' : 'add_equipo';
-        
+
         // Corrección: Si editamos un temporal, en realidad es un 'add' en la cola, 
         // pero para simplificar, si es temporal lo tratamos como nuevo.
-        if(data.id.startsWith('temp_')) {
-             // Lógica avanzada: habría que actualizar el item en la cola queue.
-             // Para este tutorial básico, permitiremos crearlo de nuevo o editarlo visualmente.
+        if (data.id.startsWith('temp_')) {
+            // Lógica avanzada: habría que actualizar el item en la cola queue.
+            // Para este tutorial básico, permitiremos crearlo de nuevo o editarlo visualmente.
         }
 
         try {
             const response = await api(action, data);
-            
+
             // Limpiar borrador
-            if (!data.id || data.id.startsWith('temp_')) clearDraft(); 
-            
+            if (!data.id || data.id.startsWith('temp_')) clearDraft();
+
             modalContainer.innerHTML = '';
-            
+
             // Si fue guardado offline, mostramos alerta suave
-            if(response.offline) {
+            if (response.offline) {
                 loadEquipos(); // Recarga desde caché local con el nuevo dato
             } else {
                 loadEquipos(); // Recarga desde red
@@ -388,9 +427,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div>
                         <label class="block text-sm">Estado</label>
                         <select name="estado" class="w-full mt-1 p-2 border rounded">
-                            <option value="Disponible" ${ (draft?.estado || equipo?.estado) === 'Disponible' ? 'selected' : '' }>Disponible</option>
-                            <option value="Ocupado" ${ (draft?.estado || equipo?.estado) === 'Ocupado' ? 'selected' : '' }>Ocupado</option>
-                            <option value="En Mantenimiento" ${ (draft?.estado || equipo?.estado) === 'En Mantenimiento' ? 'selected' : '' }>En Mantenimiento</option>
+                            <option value="Disponible" ${(draft?.estado || equipo?.estado) === 'Disponible' ? 'selected' : ''}>Disponible</option>
+                            <option value="Ocupado" ${(draft?.estado || equipo?.estado) === 'Ocupado' ? 'selected' : ''}>Ocupado</option>
+                            <option value="En Mantenimiento" ${(draft?.estado || equipo?.estado) === 'En Mantenimiento' ? 'selected' : ''}>En Mantenimiento</option>
                         </select>
                     </div>
                     <div class="text-right mt-4">
@@ -414,7 +453,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderDeleteModal(equipo) {
-         modalContainer.innerHTML = `
+        modalContainer.innerHTML = `
          <div class="fixed inset-0 bg-gray-800 bg-opacity-75 flex items-center justify-center z-50">
             <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md text-center">
                 <h2 class="text-xl font-bold mb-4">Confirmar Eliminación</h2>
@@ -436,13 +475,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Event Listeners ---
     async function handleLogout() {
-        try { await api('logout'); } catch(e){}
+        try { await api('logout'); } catch (e) { }
         window.location.href = 'index.html';
     }
 
     logoutBtn.addEventListener('click', handleLogout);
     addEquipoBtn.addEventListener('click', () => renderEquipoModal());
-    
+
     let debounceTimer;
     searchInput.addEventListener('input', (e) => {
         clearTimeout(debounceTimer);
@@ -451,23 +490,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     inventoryBody.addEventListener('click', async (e) => {
         let equipos = await getCachedEquipos(); // Buscar en local primero
-        
+
         if (e.target.classList.contains('edit-btn')) {
             const id = e.target.dataset.id;
             // OJO: Los IDs temporales son strings, los de BD son números (generalmente)
-            const equipo = equipos.find(eq => eq.id == id); 
-            if(equipo) renderEquipoModal(equipo);
+            const equipo = equipos.find(eq => eq.id == id);
+            if (equipo) renderEquipoModal(equipo);
         }
         if (e.target.classList.contains('delete-btn')) {
             const id = e.target.dataset.id;
             const equipo = equipos.find(eq => eq.id == id);
-            if(equipo) renderDeleteModal(equipo);
+            if (equipo) renderDeleteModal(equipo);
         }
     });
 
     // --- Carga Inicial ---
-    initDB();
-    checkUserSession();
+    initDB().then(() => {
+        checkUserSession();
+    }).catch(console.error);
 
     // --- SW ---
     if ('serviceWorker' in navigator) {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'equipos-awp-v3'; // Subí la versión para forzar actualización
+const CACHE_NAME = 'equipos-awp-v4'; // Subí la versión para forzar actualización
 const urlsToCache = [
     './',                // Usa punto al inicio para ruta relativa
     './index.html',
@@ -6,13 +6,24 @@ const urlsToCache = [
     './landing.js',      // ¿Seguro que existe? Si no, bórralo
     './app.js',
     './manifest.json',
-    './icons/icon.svg'   // Verifica que la carpeta icons y el archivo existan
+    './tailwindcss.js', // Agregado para soporte offline de estilos
+    './icons/icon.svg',
+    './icons/icon-48x48.png',
+    './icons/icon-72x72.png',
+    './icons/icon-96x96.png',
+    './icons/icon-128x128.png',
+    './icons/icon-144x144.png',
+    './icons/icon-152x152.png',
+    './icons/icon-192x192.png',
+    './icons/icon-256x256.png',
+    './icons/icon-384x384.png',
+    './icons/icon-512x512.png'
 ];
 
 self.addEventListener('install', event => {
     // Forzar al SW a activarse inmediatamente tras instalarse
     self.skipWaiting();
-    
+
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
@@ -27,7 +38,7 @@ self.addEventListener('install', event => {
 self.addEventListener('activate', event => {
     // Tomar control de todos los clientes inmediatamente
     event.waitUntil(self.clients.claim());
-    
+
     const cacheWhitelist = [CACHE_NAME];
     event.waitUntil(
         caches.keys().then(cacheNames => {
