@@ -3,62 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Inventario PWA</title>
-    <meta name="theme-color" content="#3b82f6">
-    <link rel="manifest" href="manifest.json">
+    <title>EquiposLaboratoriosAWP - Gestión de Inventario</title>
     
-    <!-- Tailwind CSS vía CDN -->
+    <!-- Descripción para SEO y PWA Score -->
+    <meta name="description" content="Gestión de inventario de equipos de laboratorio eficiente y offline.">
+    
+    <!-- Color del tema (Barra de estado en Android) -->
+    <meta name="theme-color" content="#0A80AB">
+
+    <!-- Enlace al Manifiesto -->
+    <link rel="manifest" href="manifest.json">
+
+    <!-- Compatibilidad iOS (iPhone requiere esto para verse como App) -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png"> <!-- iOS necesita PNG, no SVG -->
+
+    <!-- Favicon (Usa ruta relativa) -->
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+    <!-- Fallback para navegadores viejos -->
+    <link rel="icon" href="icons/icon.ico" type="image/x-icon"> 
+
+    <!-- Tailwind CSS (CDN) -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen text-gray-800">
+<body class="bg-[#FDFEFE] text-gray-800">
 
-    <!-- Navbar -->
-    <nav class="bg-blue-600 p-4 shadow-md">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-white text-xl font-bold">🔬 Lab Inventory PWA</h1>
-            <div id="status-indicator" class="text-white text-sm bg-green-500 px-3 py-1 rounded-full font-semibold">
-                Online
+    <!-- Header -->
+    <header class="bg-white shadow-md">
+        <nav class="container mx-auto px-6 py-4 flex justify-between items-center">
+            <a href="#" class="text-2xl font-bold text-[#0A80AB]">EquiposLaboratoriosAWP</a>
+            <div>
+                <button id="login-btn" class="px-4 py-2 text-white bg-[#0A80AB] rounded-md hover:bg-opacity-90 transition">Iniciar Sesión</button>
+                <button id="register-btn" class="ml-2 px-4 py-2 border border-[#0A80AB] text-[#0A80AB] rounded-md hover:bg-[#0A80AB] hover:text-white transition">Registrarse</button>
             </div>
-        </div>
-    </nav>
+        </nav>
+    </header>
 
-    <!-- Contenedor Principal -->
-    <main class="container mx-auto p-4 mt-6">
-        
-        <!-- Alerta Offline (Oculta por defecto) -->
-        <div id="offline-banner" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
-            <p class="font-bold">Modo Offline</p>
-            <p>No hay conexión a internet. Estás viendo datos guardados localmente.</p>
-        </div>
-
-        <!-- Buscador -->
-        <div class="mb-6">
-            <label for="search" class="block text-sm font-medium text-gray-700 mb-2">Buscar Equipo</label>
-            <input type="text" id="search" placeholder="Buscar por nombre o descripción..." 
-                   class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:outline-none transition">
-        </div>
-
-        <!-- Tabla de Resultados -->
-        <div class="bg-white shadow-md rounded-lg overflow-hidden">
-            <table class="min-w-full leading-normal">
-                <thead>
-                    <tr>
-                        <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">ID</th>
-                        <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Nombre</th>
-                        <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Descripción</th>
-                        <th class="px-5 py-3 border-b-2 border-gray-200 bg-gray-100 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Estado</th>
-                    </tr>
-                </thead>
-                <tbody id="inventory-body">
-                    <!-- Los datos se insertarán aquí vía JS -->
-                </tbody>
-            </table>
-            <div id="loading" class="p-4 text-center text-gray-500 hidden">Cargando datos...</div>
-            <div id="no-data" class="p-4 text-center text-gray-500 hidden">No se encontraron resultados.</div>
-        </div>
+    <!-- Hero Section -->
+    <main class="container mx-auto px-6 py-20 text-center">
+        <h1 class="text-5xl font-extrabold text-gray-900">Gestión de Inventario de Laboratorio, Simplificada</h1>
+        <p class="mt-4 text-xl text-gray-600">Optimiza el seguimiento de tus equipos con una solución PWA moderna y eficiente.</p>
+        <button id="cta-btn" class="mt-8 px-8 py-3 text-white bg-[#0A80AB] rounded-full font-semibold text-lg hover:bg-opacity-90 transition transform hover:scale-105">Empezar Ahora</button>
     </main>
 
-    <!-- Lógica de la Aplicación -->
-    <script src="app.js"></script>
+    <!-- Modal Container -->
+    <div id="modal-container"></div>
+
+    <!-- Script Principal -->
+    <script src="landing.js"></script>
 </body>
 </html>

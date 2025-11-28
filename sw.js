@@ -1,66 +1,66 @@
-// sw.js
-const CACHE_NAME = 'lab-inventory-v1';
-const ASSETS_TO_CACHE = [
-    './',                // Alias para index.html
+const CACHE_NAME = 'equipos-awp-v3'; // Subí la versión para forzar actualización
+const urlsToCache = [
+    './',                // Usa punto al inicio para ruta relativa
     './index.html',
+    './dashboard.html',  // Asegúrate que este archivo EXISTA, si no, borra esta línea
+    './landing.js',      // ¿Seguro que existe? Si no, bórralo
     './app.js',
     './manifest.json',
-    // Intentamos cachear Tailwind (Nota: Lo ideal en prod es descargar el CSS o usar build process)
-    'https://cdn.tailwindcss.com' 
+    './icons/icon.svg'   // Verifica que la carpeta icons y el archivo existan
 ];
 
-// 1. Instalación: Cachear App Shell
 self.addEventListener('install', event => {
+    // Forzar al SW a activarse inmediatamente tras instalarse
+    self.skipWaiting();
+    
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then(cache => {
-                console.log('SW: Cacheando archivos estáticos');
-                return cache.addAll(ASSETS_TO_CACHE);
+                console.log('Abriendo caché y guardando archivos');
+                // IMPORTANTE: Si UNO solo de estos falla (404), todo falla.
+                return cache.addAll(urlsToCache);
             })
+            .catch(err => console.error('Fallo al registrar caché:', err))
     );
-    self.skipWaiting(); // Activar inmediatamente
 });
 
-// 2. Activación: Limpiar cachés viejos
 self.addEventListener('activate', event => {
+    // Tomar control de todos los clientes inmediatamente
+    event.waitUntil(self.clients.claim());
+    
+    const cacheWhitelist = [CACHE_NAME];
     event.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(
-                cacheNames.map(cache => {
-                    if (cache !== CACHE_NAME) {
-                        console.log('SW: Borrando caché antigua', cache);
-                        return caches.delete(cache);
+                cacheNames.map(cacheName => {
+                    if (cacheWhitelist.indexOf(cacheName) === -1) {
+                        return caches.delete(cacheName);
                     }
                 })
             );
         })
     );
-    self.clients.claim();
 });
 
-// 3. Intercepción (Fetch Strategy: Stale-While-Revalidate o Cache First para estáticos)
-// Para archivos estáticos usamos Cache First.
-// IMPORTANTE: Las peticiones a api.php NO las interceptamos aquí para cache, 
-// dejamos que app.js maneje la lógica de datos con LocalStorage según requerimiento.
 self.addEventListener('fetch', event => {
-    const url = new URL(event.request.url);
+    const requestUrl = new URL(event.request.url);
 
-    // Si la petición es a la API, no hacemos nada en el SW (retornamos fetch directo)
-    // Esto asegura que app.js controle la lógica Network-First + LocalStorage
-    if (url.pathname.includes('api.php')) {
-        return; 
+    // 1. ESTRATEGIA PARA LA API: NETWORK ONLY
+    // No queremos cachear peticiones a api.php, queremos datos frescos o error.
+    if (requestUrl.pathname.includes('api.php')) {
+        return; // El navegador hace el fetch normal. Si falla, app.js maneja el error.
     }
 
-    // Para el resto (archivos estáticos HTML, JS, CSS)
+    // 2. ESTRATEGIA PARA ARCHIVOS ESTÁTICOS: CACHE FIRST (Caché primero, luego red)
+    // Esto hace que la app cargue rápido y funcione offline.
     event.respondWith(
-        caches.match(event.request)
-            .then(response => {
-                // Si está en caché, devolverlo
-                if (response) {
-                    return response;
-                }
-                // Si no, ir a la red
-                return fetch(event.request);
-            })
+        caches.match(event.request).then(response => {
+            // Si está en caché, lo devolvemos
+            if (response) {
+                return response;
+            }
+            // Si no, vamos a la red
+            return fetch(event.request);
+        })
     );
 });

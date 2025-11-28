@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - EquiposLaboratoriosAWP</title>
+    
+    <!-- PWA y SEO -->
+    <meta name="theme-color" content="#0A80AB">
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- iOS Support -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png"> <!-- Corregido a PNG -->
+
+    <!-- Favicon -->
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+    <link rel="icon" href="icons/icon.ico" type="image/x-icon">
+
+    <!-- Tailwind CSS (Recuerda tenerlo en caché en sw.js) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-100">
+
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-[#FDFEFE] shadow-md flex flex-col hidden md:flex"> <!-- Oculto en móviles pequeños por defecto si quieres -->
+            <div class="p-6 text-2xl font-bold text-[#0A80AB] border-b border-slate-200">
+                EquiposAWP
+            </div>
+            <nav class="flex-1 p-4">
+                <a href="#" class="flex items-center px-4 py-2 text-white bg-[#0A80AB] rounded-md transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path></svg>
+                    <span class="ml-3">Inventario</span>
+                </a>
+            </nav>
+            <div class="p-4 border-t border-slate-200">
+                <div id="user-info" class="flex flex-col mb-4"></div>
+                <button id="logout-btn" class="w-full px-4 py-2 text-red-600 border border-red-600 rounded-md hover:bg-red-600 hover:text-white transition-colors">Cerrar Sesión</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col overflow-hidden h-screen"> <!-- h-screen asegura scroll correcto -->
+            <header class="bg-white p-6 border-b border-slate-200 flex justify-between items-center shadow-sm z-10">
+                <h1 class="text-xl md:text-2xl font-bold text-gray-800">Inventario</h1>
+                <button id="add-equipo-btn" class="px-3 py-2 md:px-4 md:py-2 text-white bg-[#0A80AB] rounded-md hover:bg-opacity-90 transition-transform active:scale-95 text-sm md:text-base">
+                    + Nuevo
+                </button>
+            </header>
+            
+            <div class="flex-1 p-4 md:p-6 overflow-y-auto bg-slate-100">
+                <div class="mb-6">
+                    <input type="text" id="search-input" placeholder="Buscar equipo..." class="w-full p-3 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#0A80AB] shadow-sm">
+                </div>
+                
+                <!-- Tabla Responsiva -->
+                <div class="bg-white shadow-md rounded-lg overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nombre</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden sm:table-cell">Descripción</th> <!-- Oculto en móvil -->
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Fecha</th> <!-- Oculto en móvil -->
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                                    <th class="px-6 py-3"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-body" class="bg-white divide-y divide-gray-200">
+                                <!-- Se llena con app.js -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal Container -->
+    <div id="modal-container"></div>
+    
+    <!-- Eliminé el script inline redundante que rompía el modo offline -->
+    
+    <script src="app.js"></script>
+</body>
+</html>
